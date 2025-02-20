@@ -1,7 +1,3 @@
-/// ViewModel for managing tasks in the task management app.
-/// 
-/// This class extends `StateNotifier` to manage the state of a list of `TaskModel` objects.
-/// It provides methods to load, search, add, update, delete, and toggle the completion status of tasks.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:task_management_app/core/database_helper.dart';
 import 'package:logging/logging.dart';
@@ -39,17 +35,6 @@ class TaskViewModel extends StateNotifier<List<TaskModel>> {
     }
   }
 
-  /// Adds a new task to the current state and inserts it into the database.
-  ///
-  /// This method updates the current state by adding the provided [task] to the list
-  /// of tasks and then attempts to insert the task into the database using the
-  /// [databaseHelper]. If an error occurs during the insertion, it logs the error
-  /// message.
-  ///
-  /// [task]: The task to be added.
-  ///
-  /// Throws:
-  /// - Logs an error message if the task insertion fails.
   void addTask(TaskModel task) async {
     try {
       state = [...state, task];
@@ -59,29 +44,16 @@ class TaskViewModel extends StateNotifier<List<TaskModel>> {
     }
   }
 
-  /// Updates an existing task in the state and the database.
-  ///
-  /// This method takes an updated [TaskModel] object and updates the task
-  /// in the state if the task ID matches. It also updates the task in the
-  /// database using the [databaseHelper].
-  ///
-  /// If an error occurs during the update process, it logs the error using
-  /// the [_logger].
-  ///
-  /// [updatedTask] - The task object with updated information.
   void updateTask(TaskModel updatedTask) async {
-    // ...
+    try {
+      state = state
+          .map((task) => task.id == updatedTask.id ? updatedTask : task)
+          .toList();
+      await databaseHelper.updateTask(updatedTask);
+    } catch (e) {
+      _logger.severe('Error updating task: $e');
+    }
   }
-
-  /// Deletes a task from the state and the database.
-  ///
-  /// This method takes a task ID and removes the task from the state if the
-  /// task ID matches. It also deletes the task from the database using the
-  /// [databaseHelper].
-  ///
-  /// If an error occurs during the deletion process, it logs the error using
-  /// the [_logger].
-  ///
 
   void deleteTask(String taskId) async {
     try {
@@ -92,20 +64,6 @@ class TaskViewModel extends StateNotifier<List<TaskModel>> {
     }
   }
 
-  /// Toggles the completion status of a given task.
-  ///
-  /// This method updates the task's completion status, updates the state,
-  /// and interacts with the database and notification service accordingly.
-  ///
-  /// If the task is marked as completed, it cancels any existing notifications
-  /// for the task and schedules a new notification indicating the task's completion.
-  /// If the task is marked as uncompleted and has a due date in the future,
-  /// it re-schedules a notification for the task's due date.
-  ///
-  /// Throws an error if there is an issue updating the task.
-  ///
-  /// Parameters:
-  /// - `task`: The [TaskModel] instance representing the task to be toggled.
   void toggleTaskCompletion(TaskModel task) async {
     try {
       final updatedTask = task.copyWith(isCompleted: !task.isCompleted);
@@ -116,21 +74,19 @@ class TaskViewModel extends StateNotifier<List<TaskModel>> {
         // Cancel the notification if task is marked as completed.
         NotificationService.cancelNotification(updatedTask.id.hashCode);
         NotificationService.scheduleNotification(
-          id: updatedTask.id.hashCode,
-          title: 'Task Completed',
-          body: 'Your task "${updatedTask.title}" is completed.',
-          scheduledTime: DateTime.now(),
-          currentNotification: true
-        );
+            id: updatedTask.id.hashCode,
+            title: 'Task Completed',
+            body: 'Your task "${updatedTask.title}" is completed.',
+            scheduledTime: DateTime.now(),
+            currentNotification: true);
       } else if (updatedTask.dueDate.isAfter(DateTime.now())) {
         // Re-schedule if task becomes uncompleted.
         NotificationService.scheduleNotification(
-          id: updatedTask.id.hashCode,
-          title: 'Task Due',
-          body: 'Your task "${updatedTask.title}" is due today.',
-          scheduledTime: updatedTask.dueDate,
-          currentNotification: false
-        );
+            id: updatedTask.id.hashCode,
+            title: 'Task Due',
+            body: 'Your task "${updatedTask.title}" is due today.',
+            scheduledTime: updatedTask.dueDate,
+            currentNotification: false);
       }
     } catch (e) {
       _logger.severe('Error toggling task completion: $e');
