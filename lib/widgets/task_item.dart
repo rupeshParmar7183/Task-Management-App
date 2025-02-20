@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:task_management_app/models/task_model.dart';
-import 'package:uuid/uuid.dart';
 import 'package:confetti/confetti.dart';
 
 /// A widget representing an individual task card with animations,
@@ -39,13 +38,6 @@ class _TaskCardState extends State<TaskCard> with TickerProviderStateMixin {
   // Fade animation to gradually display the card.
   late final Animation<double> _fadeAnimation;
 
-  // Animation controller for the deletion animation.
-  late final AnimationController _deleteController;
-  // Scale animation to shrink the card during deletion.
-  late final Animation<double> _scaleAnimation;
-  // Rotation animation to slightly rotate the card during deletion.
-  late final Animation<double> _rotationAnimation;
-
   // Controller for the confetti effect when marking a task as complete.
   late final ConfettiController _confettiController;
 
@@ -81,24 +73,6 @@ class _TaskCardState extends State<TaskCard> with TickerProviderStateMixin {
         Tween<double>(begin: 0, end: 1).animate(_insertController); // Fade effect.
     _insertController.forward(); // Start the insertion animation.
 
-    // Set up the deletion animation (scale down and rotate).
-    _deleteController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(parent: _deleteController, curve: Curves.easeIn),
-    );
-    _rotationAnimation = Tween<double>(begin: 0.0, end: 0.5).animate(
-      CurvedAnimation(parent: _deleteController, curve: Curves.easeIn),
-    );
-    // When deletion animation completes, trigger the onDelete callback.
-    _deleteController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        widget.onDelete();
-      }
-    });
-
     // Initialize the confetti controller (plays for 1 second).
     _confettiController =
         ConfettiController(duration: const Duration(seconds: 1));
@@ -108,7 +82,6 @@ class _TaskCardState extends State<TaskCard> with TickerProviderStateMixin {
   void dispose() {
     // Dispose animation and confetti controllers to free up resources.
     _insertController.dispose();
-    _deleteController.dispose();
     _confettiController.dispose();
     super.dispose();
   }
@@ -135,9 +108,9 @@ class _TaskCardState extends State<TaskCard> with TickerProviderStateMixin {
         ],
       ),
     );
-    // If confirmed, start the deletion animation.
+    // If confirmed, immediately trigger the onDelete callback.
     if (confirmed == true) {
-      _deleteController.forward();
+      widget.onDelete();
     }
   }
 
@@ -148,202 +121,186 @@ class _TaskCardState extends State<TaskCard> with TickerProviderStateMixin {
       position: _slideAnimation,
       child: FadeTransition(
         opacity: _fadeAnimation,
-        child: AnimatedBuilder(
-          animation: _deleteController,
-          builder: (context, child) {
-            // Apply deletion animations: scale down and rotate.
-            return Transform.scale(
-              scale: _scaleAnimation.value,
-              child: Transform.rotate(
-                angle: _rotationAnimation.value,
-                child: child,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Card(
+              // Use dark or light color based on the theme.
+              color: widget.isDarkMode ? Colors.grey[900] : Colors.grey[100],
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
-            );
-          },
-          // Main card content.
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Card(
-                // Use dark or light color based on the theme.
-                color: widget.isDarkMode ? Colors.grey[900] : Colors.grey[100],
-                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                shape: RoundedRectangleBorder(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(width: 1), // Card border.
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(width: 1), // Card border.
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Top row: Toggle completion, task title, and priority label.
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              // GestureDetector for toggling completion and triggering confetti.
-                              GestureDetector(
-                                onTap: () {
-                                  // Only play confetti if the task is not already completed.
-                                  if (!widget.task.isCompleted) {
-                                    _confettiController.play();
-                                  }
-                                  widget.onToggleCompletion();
-                                },
-                                child: Container(
-                                  width: 24,
-                                  height: 24,
-                                  decoration: BoxDecoration(
-                                    // Change background color if completed.
-                                    color: widget.task.isCompleted
-                                        ? Colors.green
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(5),
-                                    border: Border.all(
-                                        color: Colors.green, width: 2),
-                                  ),
-                                  // Display a check icon if the task is completed.
-                                  child: widget.task.isCompleted
-                                      ? const Icon(Icons.check,
-                                          color: Colors.white, size: 16)
-                                      : null,
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top row: Toggle completion, task title, and priority label.
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            // GestureDetector for toggling completion and triggering confetti.
+                            GestureDetector(
+                              onTap: () {
+                                // Only play confetti if the task is not already completed.
+                                if (!widget.task.isCompleted) {
+                                  _confettiController.play();
+                                }
+                                widget.onToggleCompletion();
+                              },
+                              child: Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  // Change background color if completed.
+                                  color: widget.task.isCompleted
+                                      ? Colors.green
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(5),
+                                  border: Border.all(
+                                      color: Colors.green, width: 2),
                                 ),
+                                // Display a check icon if the task is completed.
+                                child: widget.task.isCompleted
+                                    ? const Icon(Icons.check,
+                                        color: Colors.white, size: 16)
+                                    : null,
                               ),
-                              const SizedBox(width: 8),
-                              // Task title.
-                              Text(
-                                widget.task.title,
-                                style: TextStyle(
-                                  color: widget.isDarkMode
-                                      ? Colors.white
-                                      : Colors.black,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          // Display task priority with mapped color and text.
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              // Choose color based on the task's priority.
-                              color: widget.task.priority == 0
-                                  ? Colors.green.shade300
-                                  : widget.task.priority == 1
-                                      ? Colors.yellow.shade700
-                                      : widget.task.priority == 2
-                                          ? Colors.red.shade400
-                                          : Colors.grey,
-                              borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Text(
-                              // Retrieve the textual representation from the map.
-                              _priorityText[widget.task.priority] ?? 'Unknown',
-                              style: const TextStyle(
-                                color: Colors.white,
+                            const SizedBox(width: 8),
+                            // Task title.
+                            Text(
+                              widget.task.title,
+                              style: TextStyle(
+                                color: widget.isDarkMode
+                                    ? Colors.white
+                                    : Colors.black,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Task description.
-                      Text(
-                        widget.task.description,
-                        style: TextStyle(
-                          color: widget.isDarkMode
-                              ? Colors.white70
-                              : Colors.black87,
-                          fontSize: 14,
+                          ],
                         ),
+                        // Display task priority with mapped color and text.
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            // Choose color based on the task's priority.
+                            color: widget.task.priority == 0
+                                ? Colors.green.shade300
+                                : widget.task.priority == 1
+                                    ? Colors.yellow.shade700
+                                    : widget.task.priority == 2
+                                        ? Colors.red.shade400
+                                        : Colors.grey,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            // Retrieve the textual representation from the map.
+                            _priorityText[widget.task.priority] ?? 'Unknown',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Task description.
+                    Text(
+                      widget.task.description,
+                      style: TextStyle(
+                        color: widget.isDarkMode
+                            ? Colors.white70
+                            : Colors.black87,
+                        fontSize: 14,
                       ),
-                      const SizedBox(height: 8),
-                      // Bottom row: Due date and action buttons (edit, delete).
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Display the due date with an accompanying calendar icon.
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.calendar_today,
+                    ),
+                    const SizedBox(height: 8),
+                    // Bottom row: Due date and action buttons (edit, delete).
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Display the due date with an accompanying calendar icon.
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              color: widget.isDarkMode
+                                  ? Colors.white70
+                                  : Colors.black54,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              "Due: ${widget.task.dueDate.toLocal().toString().split(' ')[0]}",
+                              style: TextStyle(
                                 color: widget.isDarkMode
                                     ? Colors.white70
                                     : Colors.black54,
-                                size: 16,
+                                fontSize: 12,
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                "Due: ${widget.task.dueDate.toLocal().toString().split(' ')[0]}",
-                                style: TextStyle(
-                                  color: widget.isDarkMode
-                                      ? Colors.white70
-                                      : Colors.black54,
-                                  fontSize: 12,
-                                ),
+                            ),
+                          ],
+                        ),
+                        // Action buttons: Edit and Delete.
+                        Row(
+                          children: [
+                            // Edit button with tooltip for accessibility.
+                            IconButton(
+                              icon: Icon(
+                                Icons.edit,
+                                color: widget.isDarkMode
+                                    ? Colors.white70
+                                    : Colors.black54,
                               ),
-                            ],
-                          ),
-                          // Action buttons: Edit and Delete.
-                          Row(
-                            children: [
-                              // Edit button with tooltip for accessibility.
-                              IconButton(
-                                icon: Icon(
-                                  Icons.edit,
-                                  color: widget.isDarkMode
-                                      ? Colors.white70
-                                      : Colors.black54,
-                                ),
-                                onPressed: widget.onEdit,
-                                tooltip: 'Edit Task',
-                              ),
-                              // Delete button with tooltip; triggers delete confirmation.
-                              IconButton(
-                                icon:
-                                    const Icon(Icons.delete, color: Colors.red),
-                                onPressed: _confirmDelete,
-                                tooltip: 'Delete Task',
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                              onPressed: widget.onEdit,
+                              tooltip: 'Edit Task',
+                            ),
+                            // Delete button with tooltip; triggers delete confirmation.
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: _confirmDelete,
+                              tooltip: 'Delete Task',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              // Overlay the confetti effect.
-              Positioned.fill(
-                child: IgnorePointer(
-                  // Confetti widget, configured with desired parameters.
-                  child: ConfettiWidget(
-                    confettiController: _confettiController,
-                    blastDirectionality: BlastDirectionality.explosive,
-                    emissionFrequency: 0.05,
-                    numberOfParticles: 20,
-                    maxBlastForce: 20,
-                    minBlastForce: 5,
-                    gravity: 0.3,
-                    colors: const [
-                      Colors.green,
-                      Colors.blue,
-                      Colors.red,
-                      Colors.orange,
-                    ],
-                  ),
+            ),
+            // Overlay the confetti effect.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ConfettiWidget(
+                  confettiController: _confettiController,
+                  blastDirectionality: BlastDirectionality.explosive,
+                  emissionFrequency: 0.05,
+                  numberOfParticles: 20,
+                  maxBlastForce: 20,
+                  minBlastForce: 5,
+                  gravity: 0.3,
+                  colors: const [
+                    Colors.green,
+                    Colors.blue,
+                    Colors.red,
+                    Colors.orange,
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
